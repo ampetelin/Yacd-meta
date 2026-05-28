@@ -33,6 +33,7 @@ const { useState, useCallback } = React;
 
 function renderTableOrPlaceholder(
   columns,
+  setColumns,
   hiddenColumns,
   conns: FormattedConn[],
   height: number,
@@ -42,6 +43,7 @@ function renderTableOrPlaceholder(
     <ConnectionTable
       data={conns}
       columns={columns}
+      setColumns={setColumns}
       hiddenColumns={hiddenColumns}
       height={height}
       apiConfig={apiConfig}
@@ -186,6 +188,7 @@ export default function Connections({ apiConfig }: Props) {
             <TabPanel>
               {renderTableOrPlaceholder(
                 columns,
+                setColumns,
                 hiddenColumns,
                 filteredConns,
                 containerHeight - CONNECTIONS_PADDING_BOTTOM,
@@ -202,6 +205,7 @@ export default function Connections({ apiConfig }: Props) {
             <TabPanel>
               {renderTableOrPlaceholder(
                 columns,
+                setColumns,
                 hiddenColumns,
                 filteredClosedConns,
                 containerHeight - CONNECTIONS_PADDING_BOTTOM,

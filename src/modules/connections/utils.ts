@@ -11,6 +11,7 @@ export type ConnectionColumn = {
   Header?: string;
   show?: boolean;
   sortDescFirst?: boolean;
+  width?: number;
 };
 
 export const ALL_SOURCE_IP = 'ALL_SOURCE_IP';
@@ -22,6 +23,22 @@ export const COLUMNS_STORAGE_KEY = 'columns';
 const sortDescFirst = true;
 
 export const HIDDEN_COLUMNS_DEFAULT = ['id'];
+export const CONNECTION_COLUMN_WIDTHS_DEFAULT: Record<string, number> = {
+  ctrl: 50,
+  start: 100,
+  type: 120,
+  host: 300,
+  rule: 200,
+  chains: 250,
+  download: 100,
+  upload: 100,
+  downloadSpeedCurr: 100,
+  uploadSpeedCurr: 100,
+  source: 170,
+  destinationIP: 170,
+  process: 130,
+  sniffHost: 150,
+};
 export const CONNECTION_COLUMNS_DEFAULT: ConnectionColumn[] = [
   { accessor: 'id', show: false },
   { Header: 'c_type', accessor: 'type' },
@@ -66,20 +83,28 @@ export function getInitialColumns(): ConnectionColumn[] {
     return [...CONNECTION_COLUMNS_DEFAULT];
   }
 
-  return [...CONNECTION_COLUMNS_DEFAULT].sort((prev, next) => {
-    const prevIdx = columnOrder.findIndex((column) => column.accessor === prev.accessor);
-    const nextIdx = columnOrder.findIndex((column) => column.accessor === next.accessor);
+  return [...CONNECTION_COLUMNS_DEFAULT]
+    .map((column) => {
+      const savedColumn = columnOrder.find((item) => item.accessor === column.accessor);
+      return {
+        ...column,
+        width: savedColumn?.width ?? column.width,
+      };
+    })
+    .sort((prev, next) => {
+      const prevIdx = columnOrder.findIndex((column) => column.accessor === prev.accessor);
+      const nextIdx = columnOrder.findIndex((column) => column.accessor === next.accessor);
 
-    if (prevIdx === -1) {
-      return 1;
-    }
+      if (prevIdx === -1) {
+        return 1;
+      }
 
-    if (nextIdx === -1) {
-      return -1;
-    }
+      if (nextIdx === -1) {
+        return -1;
+      }
 
-    return prevIdx - nextIdx;
-  });
+      return prevIdx - nextIdx;
+    });
 }
 
 export function saveColumns(columns: ConnectionColumn[]) {

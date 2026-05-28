@@ -9,6 +9,10 @@ import { useTranslation } from 'react-i18next';
 import { useSortBy, useTable } from 'react-table';
 import { List as VirtualList, RowComponentProps } from 'react-window';
 
+import {
+  CONNECTION_COLUMN_WIDTHS_DEFAULT,
+  ConnectionColumn,
+} from '~/modules/connections/utils';
 import { FormattedConn } from '~/store/connections';
 
 import * as connAPI from '../api/connections';
@@ -21,27 +25,17 @@ import ModalConnectionDetails from './ModalConnectionDetails';
 
 const sortById = { id: 'id', desc: true };
 
-const COLUMN_WIDTHS = {
-  ctrl: 50,
-  start: 100,
-  type: 120,
-  host: 300,
-  rule: 200,
-  chains: 250,
-  download: 100,
-  upload: 100,
-  downloadSpeedCurr: 100,
-  uploadSpeedCurr: 100,
-  source: 170,
-  destinationIP: 170,
-  process: 130,
-  sniffHost: 150,
+const MIN_COLUMN_WIDTH = 50;
+const DEFAULT_COLUMN_WIDTH = 100;
+
+const getColumnWidth = (column: { id?: string; accessor?: string; width?: number }) => {
+  const columnId = column.id || column.accessor;
+  return column.width || CONNECTION_COLUMN_WIDTHS_DEFAULT[columnId] || DEFAULT_COLUMN_WIDTH;
 };
 
-const TOTAL_WIDTH = Object.values(COLUMN_WIDTHS).reduce((a, b) => a + b, 0);
-
-const getColumnStyle = (columnId: string) => {
-  const width = COLUMN_WIDTHS[columnId] || 100;
+const getColumnStyle = (column: { id?: string; accessor?: string; width?: number }) => {
+  const columnId = column.id || column.accessor;
+  const width = getColumnWidth(column);
   const style: React.CSSProperties = {
     width,
     minWidth: width,
@@ -60,7 +54,7 @@ const getColumnStyle = (columnId: string) => {
   return style;
 };
 
-function Table({ data, columns, hiddenColumns, apiConfig, height }) {
+function Table({ data, columns, hiddenColumns, setColumns, apiConfig, height }) {
   const { t, i18n } = useTranslation();
   const [operationId, setOperationId] = useState('');
   const [showModalDisconnect, setShowModalDisconnect] = useState(false);
@@ -97,8 +91,13 @@ function Table({ data, columns, hiddenColumns, apiConfig, height }) {
     useSortBy
   );
 
-  const { setHiddenColumns, headerGroups, rows, prepareRow, toggleSortBy } = table;
+  const { setHiddenColumns, headerGroups, rows, prepareRow, toggleSortBy, visibleColumns } = table;
   const state = table.state;
+
+  const tableWidth = useMemo(
+    () => visibleColumns.reduce((total, column) => total + getColumnWidth(column), 0),
+    [visibleColumns]
+  );
 
   const sortOptions = useMemo(() => {
     return columns
@@ -135,6 +134,37 @@ function Table({ data, columns, hiddenColumns, apiConfig, height }) {
     setOperationId(id);
     setShowModalDisconnect(true);
   }, []);
+
+  const handleColumnResizeStart = useCallback(
+    (column: { id: string; width?: number }, event: React.MouseEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const startX = event.clientX;
+      const startWidth = getColumnWidth(column);
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        const nextWidth = Math.max(MIN_COLUMN_WIDTH, startWidth + moveEvent.clientX - startX);
+
+        setColumns(
+          columns.map((item: ConnectionColumn) =>
+            item.accessor === column.id ? { ...item, width: nextWidth } : item
+          )
+        );
+      };
+
+      const handleMouseUp = () => {
+        document.body.classList.remove('is-resizing-connection-column');
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+
+      document.body.classList.add('is-resizing-connection-column');
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    },
+    [columns, setColumns]
+  );
 
   const renderCell = useCallback(
     (cell, locale) => {
@@ -194,7 +224,7 @@ function Table({ data, columns, hiddenColumns, apiConfig, height }) {
             style: {
               ...style,
               display: 'flex',
-              width: TOTAL_WIDTH,
+              width: tableWidth,
             },
           })}
           className={s.tr}
@@ -209,7 +239,7 @@ function Table({ data, columns, hiddenColumns, apiConfig, height }) {
           }}
         >
           {row.cells.map((cell) => {
-            const columnStyle = getColumnStyle(cell.column.id);
+            const columnStyle = getColumnStyle(cell.column);
             return (
               <div
                 {...cell.getCellProps()}
@@ -230,7 +260,7 @@ function Table({ data, columns, hiddenColumns, apiConfig, height }) {
         </div>
       );
     },
-    [prepareRow, rows, renderCell, locale]
+    [prepareRow, rows, tableWidth, renderCell, locale]
   );
 
   const handleDesktopListScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -293,7 +323,7 @@ function Table({ data, columns, hiddenColumns, apiConfig, height }) {
             ref={headerRef}
             style={{ overflow: 'hidden', width: '100%' }}
           >
-            <div className={s.thead} style={{ width: TOTAL_WIDTH }}>
+            <div className={s.thead} style={{ width: tableWidth }}>
               {headerGroups.map((headerGroup, trindex) => (
                 <div
                   {...headerGroup.getHeaderGroupProps()}
@@ -302,7 +332,7 @@ function Table({ data, columns, hiddenColumns, apiConfig, height }) {
                   style={{ display: 'flex' }}
                 >
                   {headerGroup.headers.map((column) => {
-                    const columnStyle = getColumnStyle(column.id);
+                    const columnStyle = getColumnStyle(column);
                     return (
                       <div
                         {...column.getHeaderProps(column.getSortByToggleProps())}
@@ -324,6 +354,11 @@ function Table({ data, columns, hiddenColumns, apiConfig, height }) {
                             ) : null}
                           </span>
                         ) : null}
+                        <div
+                          className={s.resizeHandle}
+                          onMouseDown={(event) => handleColumnResizeStart(column, event)}
+                          onClick={(event) => event.stopPropagation()}
+                        />
                       </div>
                     );
                   })}
